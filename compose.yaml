@@ -1,0 +1,106 @@
+# Trust boundaries:
+#   public - reachable from the host: Hydra public API and the login UI
+#   admin  - Hydra admin API; only services that must call it are attached
+#   db     - Postgres; only Hydra and its migration job are attached
+# Docker networks isolate containers, not ports: anything sharing a network with
+# Hydra can reach both 4444 and 4445. The control here is that 4445 is never
+# published and untrusted containers stay off `admin`.
+services:
+  postgresd:
+    image: postgres:16
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "hydra"]
+      interval: 1s
+      timeout: 30s
+      retries: 30
+    environment:
+      - PGUSER=hydra
+      - POSTGRES_USER=hydra
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - POSTGRES_DB=hydra
+    secrets:
+      - postgres_password
+    networks:
+      - db
+    volumes:
+      - hydra-pgdata:/var/lib/postgresql/data
+
+  hydra-migrate:
+    image: oryd/hydra:v26.2.0
+    pull_policy: missing
+    volumes:
+      - type: bind
+        source: ./ory-hydra/config
+        target: /etc/config/hydra
+        read_only: true
+    secrets:
+      # mounted under /run/secrets/
+      - source: hydra_secrets
+        target: hydra.secrets.yml
+      - source: hydra_dsn
+        target: hydra.dsn.yml
+    command: migrate -c /etc/config/hydra/hydra.yml -c /run/secrets/hydra.secrets.yml -c /run/secrets/hydra.dsn.yml sql up -e --yes
+    restart: on-failure
+    networks:
+      - db
+    depends_on:
+      postgresd:
+        condition: service_healthy
+
+  hydra:
+    image: oryd/hydra:v26.2.0
+    pull_policy: missing
+    volumes:
+      - type: bind
+        source: ./ory-hydra/config
+        target: /etc/config/hydra
+        read_only: true
+    secrets:
+      # mounted under /run/secrets/
+      - source: hydra_secrets
+        target: hydra.secrets.yml
+      - source: hydra_dsn
+        target: hydra.dsn.yml
+    ports:
+      - "127.0.0.1:4444:4444" # public API only; admin (4445) is deliberately not published
+    # --dev allows the http:// issuer for local use. Not for production.
+    command: serve -c /etc/config/hydra/hydra.yml -c /run/secrets/hydra.secrets.yml -c /run/secrets/hydra.dsn.yml all --dev
+    restart: unless-stopped
+    depends_on:
+      hydra-migrate:
+        condition: service_completed_successfully
+    networks:
+      - public
+      - admin
+      - db
+
+  # Ory's reference app, replaced by ./login in step 2.
+  consent:
+    image: oryd/hydra-login-consent-node:v26.2.0
+    environment:
+      - HYDRA_ADMIN_URL=http://hydra:4445
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    networks:
+      - public
+      - admin
+    depends_on: [hydra]
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  hydra_secrets:
+    file: ./secrets/hydra.secrets.yml
+  hydra_dsn:
+    file: ./secrets/hydra.dsn.yml
+
+volumes:
+  hydra-pgdata:
+
+networks:
+  public:
+  admin:
+    internal: true
+  db:
+    internal: true
