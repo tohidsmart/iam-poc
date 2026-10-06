@@ -74,13 +74,21 @@ services:
       - admin
       - db
 
-  # Ory's reference app, replaced by ./login in step 2.
-  consent:
-    image: oryd/hydra-login-consent-node:v26.2.0
+  login:
+    build: ./login
     environment:
       - HYDRA_ADMIN_URL=http://hydra:4445
+      - COOKIE_SECRET_FILE=/run/secrets/login_cookie_secret
+    secrets:
+      - login_cookie_secret
     ports:
       - "127.0.0.1:3000:3000"
+    # Hardening: nothing writable, no capabilities, no privilege escalation.
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     networks:
       - public
@@ -94,6 +102,8 @@ secrets:
     file: ./secrets/hydra.secrets.yml
   hydra_dsn:
     file: ./secrets/hydra.dsn.yml
+  login_cookie_secret:
+    file: ./secrets/login_cookie_secret
 
 volumes:
   hydra-pgdata:
