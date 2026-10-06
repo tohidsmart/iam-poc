@@ -110,6 +110,9 @@ services:
       - COOKIE_SECRET_FILE=/run/secrets/login_cookie_secret
       # POC shortcut: the stack is plain HTTP locally, so cookies cannot be Secure.
       - COOKIE_SECURE=false
+      # Raised from the default of 10 so repeated end-to-end runs, which all come
+      # from one address, do not trip the login rate limit.
+      - LOGIN_ATTEMPTS_PER_MINUTE=60
     volumes:
       # Seeded users are data, not code: change them without rebuilding the image.
       - type: bind

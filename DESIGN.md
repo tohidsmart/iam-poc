@@ -1,13 +1,42 @@
-I completed this task by taking the following steps 
-1. I read the task brief few time tos to undertstand the requirements, must to have, marking and acceptance criteria. 
-2. From there, I had to study the Ory implementation of OAauth, how Ory hydra fit into the big picture and decide on how to evolve demo login and consent service with a custom build. 
-3. I went to Ory GitHub and started with running the end-to-end of the stack using the docker compose setup provided. I chose to setup the Postgres backend from the get-go instead of Sqllite. Running the stack involved manual steps like registering a client, start the login flow using the demo username and password, copying the access code and exchange with Hydra admin API for access token, Id and refresh token 
+# Completion flow and design decisions
 
-4. I was ready to get Claude Code invovled into the challenges. I planed to use the spec-driven development to create a constitution between my goals and objective. Instead of providing fragmanted prmopts, I start with drafting the spec.md. It outline the problem I was trying to solve The current status of the git repositroy for example the docker compose file. The tech stack : node, TypeScript , postgress, no functional requirements . my expctation etc. see spec.md 
+I completed this task by taking the following steps.
 
-5. Claude remained faithful to our constitution and started refining the spec and generated spec.refined.md The feekback I got from claude was that I used ambigius tech term , the definition of done is not well defined but it found the `unknown to me` section useful 
+1. I read the task brief a few times to understand the requirements, the must-haves, the marking and the acceptance criteria.
 
-6. Before implementation we iterated over technical decisions , analyzed the trade off and locked in the scope. 
- - How to manage secret and sensetive credentials. We agreed that there are several credentials which needs to be protected the most secure outisde of cloud is th encypt the value using symetics locally with libraries such as pgp howeer we decide that for a demo application , generating strong cred in the file, ignoring the file in source repository and load them onto the container during build time provide a secure solution. We should be able to explain the tradeoff 
- - To establish the trust boundary between services, we created 3 docker networks and skipped publishing the sensetive ports such as hydra admin api. We then whilist the allowed network for each service . This means that only specific service can talk to hydra or database. THe shortcoming of this approach is that since hydra has both public and admin api . it is in public network and if user knows the admin api port, they can reach it. A more robust solution would be to add network security policy or put the admin route behind the prpoxy. 
- - 
+2. From there, I studied Ory's implementation of OAuth2, how Ory Hydra fits into the big picture, and decided how to replace the demo login and consent service with a custom build.
+
+3. I went to the Ory GitHub repository and started by running the stack end to end using the Docker Compose setup provided. I chose to set up the Postgres backend from the start instead of SQLite. Running the stack involved manual steps: registering a client, starting the login flow with the demo username and password, copying the authorization code and exchanging it at Hydra's public API (the token endpoint) for access, ID and refresh tokens.
+
+4. I was then ready to get Claude Code involved. I planned to use spec-driven development to create a constitution between my goals and the agent. Instead of providing fragmented prompts, I started by drafting `spec.md`. It outlines the problem I was trying to solve, the current state of the git repository (for example the Docker Compose file), the tech stack (Node, TypeScript, Postgres), the non-functional requirements and my expectations. See `spec.md`.
+
+5. Claude remained faithful to our constitution, refined the spec and generated `spec.refined.md`. The feedback I got was that I used ambiguous technical terms, the definition of done was missing, and there were no priorities or time box, but that the "unknown to me" section was useful.
+
+6. Before implementation we iterated over the technical decisions, analysed the trade-offs and locked in the scope.
+   - **Secrets and sensitive credentials.** Several credentials need protecting. The most secure option outside the cloud is to encrypt the values locally with a tool such as SOPS, using an age or PGP key pair. However, we decided that for a demo application it is sufficient to generate strong credentials into files, ignore those files in the source repository, and mount them into the containers at run time (not at build time, which would bake them into image layers).
+   - **Trust boundaries.** We created three Docker networks and did not publish sensitive ports such as the Hydra admin API. Each service is attached only to the networks it needs, so only specific services can talk to Hydra's admin API or the database. Docker networks separate containers, not ports, and Hydra serves both its public and admin API from one container, so at first any container on the public network could still reach the admin port. We fixed this by binding Hydra's admin API to its admin network interface only, and verified that the demo client gets "connection refused" on it. The remaining shortcoming is that the admin API has no authentication, so every service on the admin network has all of it. A more robust solution would be a network security policy, or putting the admin routes behind an authenticating proxy.
+   - **Web framework.** We chose Fastify over Express because of its built-in structured logging and request validation.
+   - **Users.** User registration and management were outside the scope of this exercise, but the application needs sample users, and we decided they should follow config-as-data: a YAML file mounted into the container.
+   - **Password hashing.** Passwords are stored only as argon2id hashes. Argon2id is deliberately slow and memory-hungry, which makes guessing stolen hashes expensive even on GPUs, and it is the current OWASP first choice. Each hash carries its own random salt. The service refuses to start if any stored password is not an argon2id hash.
+   - **Client registration.** Building a registration process was outside the scope, so the demo client is registered by a one-shot job from a JSON file (config-as-data again). The job stands in for the operator who would approve a client in production.
+   - **Containers.** Every service is containerised and runs in the Docker stack the project started with.
+
+7. The implementation started with these contracts in place.
+   - Services such as login are layered and depend on interfaces, with manual constructor injection and no DI library, so that tests can use fakes with no network.
+   - The interface to Hydra's admin API is split into login, consent, logout and health slices, so each service gets only what it uses.
+   - Opaque access tokens were chosen over JWTs because they can be revoked immediately. The cost is one introspection call per API request.
+   - The login and consent service keeps no state of its own: no database and no server-side session. That is what lets it scale by adding replicas.
+
+8. The security implementation details came mostly from the coding agent's knowledge. I reviewed each one and can explain why it is there.
+   - The response and the hashing work are the same for an unknown user and for a wrong password. This stops attackers finding out which usernames exist.
+   - The database connection string (DSN) is in its own secret file, so the database password can change without touching the system secret or the salt.
+   - Consent grants only the scopes that were both requested by the client and ticked by the user, so a tampered form cannot add scopes.
+   - The subject sent to Hydra is a stable user ID, not the username, so a username can change without changing the identity in issued tokens.
+   - The demo client and the demo API run as two separate services, because a client app sits outside the trust boundary and must not be able to reach the admin API.
+
+9. Known gaps.
+   - Hydra's admin API has no authentication. Any service on the admin network can use all of it, so a compromised login service could accept a login as any user. The fix is an authenticating proxy in front of the admin API that allows each caller only the routes it needs.
+   - "Who obtained an access token" is logged by Hydra, not by our service, because tokens are issued at Hydra's token endpoint.
+   - The login rate limit is counted per replica, in memory. With several replicas it needs a shared store.
+   - Postgres is a single container and therefore a single point of failure.
+   - The stack runs over plain HTTP locally, and there is no CI pipeline.

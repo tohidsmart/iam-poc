@@ -1,6 +1,6 @@
 # Login & Consent Service for Ory Hydra — Refined Spec
 
-Status: DRAFT v1 (refined from `spec.md`, which is left untouched)
+Status: IMPLEMENTED. Sections 1-11 are the refinement written before any code and are kept as written; section 12 records the decisions taken and the outcome. `spec.md` is left untouched.
 Legend: **[DECIDED]** taken from the original spec · **[PROPOSED]** my default, veto freely · **[OPEN]** needs your call
 
 ---
@@ -198,3 +198,37 @@ A template that would have cut my guessing roughly in half: Goal · Definition o
 8. Stretch items.
 
 Each step ends with something runnable and a checkpoint with you.
+
+## 12. Decisions taken and outcome
+
+The original task brief was deliberately withheld while this spec was written, to test whether a spec derived from the problem alone would cover it. Compare the two at the end.
+
+| Open item | Decision |
+|---|---|
+| Time box | Half a day |
+| Secrets (Q1) | Generated files mounted as compose secrets; SOPS and KMS documented as the next step |
+| Framework and DI (Q2) | Fastify; manual constructor injection with one composition root |
+| Stretch (Q3) | Playwright end-to-end tests; demo resource server; a demo client app was added so the flow can be clicked through |
+| Token format | Opaque |
+| Demo client | Public client with PKCE |
+| Logout | Included |
+
+Changes from the plan in section 7:
+
+- The admin API is bound to the `admin` network interface, so the boundary is enforced, not only drawn.
+- The demo client and the resource server are separate services, because the client belongs outside the trust boundary.
+- No server-side "time to complete the flow" metric; the end-to-end test reports it.
+- No Prometheus container.
+
+### Definition of done
+
+| # | Check | Status |
+|---|---|---|
+| 1 | `./scripts/setup.sh && docker compose up -d --build --wait` starts the stack with no manual edits | Met |
+| 2 | `npm test` in `login/` passes with no network | Met (78 tests) |
+| 3 | `npm run e2e` drives a browser through login, consent, token exchange and an API call; covers wrong password and denied consent | Met (7 tests) |
+| 4 | Hydra admin and Postgres are not reachable from the host | Met; asserted by the end-to-end suite |
+| 5 | No secret value is committed | Met; `secrets/` is gitignored and the Hydra config holds none |
+| 6 | Login container is non-root, read-only, with no capabilities | Met |
+| 7 | Audit lines for login and consent outcomes; `/metrics` exposes outcome counters | Met |
+| 8 | `README.md` explains design, trade-offs and the production answer to each shortcut | Met |

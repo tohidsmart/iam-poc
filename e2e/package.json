@@ -1,0 +1,17 @@
+{
+  "name": "e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser tests for the full login and consent flow",
+  "type": "module",
+  "scripts": {
+    "e2e": "playwright test",
+    "e2e:headed": "SLOW_MO=600 playwright test --headed",
+    "setup": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.5",
+    "typescript": "^7.0.2"
+  }
+}
