@@ -1,10 +1,11 @@
 # Trust boundaries:
-#   public - reachable from the host: Hydra public API and the login UI
-#   admin  - Hydra admin API; only services that must call it are attached
+#   public - reachable from the host: Hydra's public API, the login UI, and the
+#            demo client and API
+#   admin  - Hydra's admin API; only services that must call it are attached
 #   db     - Postgres; only Hydra and its migration job are attached
-# Docker networks isolate containers, not ports: anything sharing a network with
-# Hydra can reach both 4444 and 4445. The control here is that 4445 is never
-# published and untrusted containers stay off `admin`.
+# Hydra's admin API listens only on its `admin` network interface (see
+# SERVE_ADMIN_HOST below), so a container that is on `public` alone cannot
+# reach port 4445 at all. It is also never published to the host.
 services:
   postgresd:
     image: postgres:16
@@ -69,17 +70,24 @@ services:
     depends_on:
       hydra-migrate:
         condition: service_completed_successfully
+    environment:
+      # Bind the admin API to the admin network's interface only. Without this
+      # Hydra listens on every interface and any container sharing `public`
+      # with it could call the unauthenticated admin API.
+      - SERVE_ADMIN_HOST=hydra-admin
     networks:
-      - public
-      - admin
-      - db
+      public:
+      admin:
+        aliases:
+          - hydra-admin
+      db:
 
   # One-shot job: registers the OAuth2 clients in ory-hydra/clients with Hydra.
   # The Hydra image has no shell, so a small curl image runs the script.
   client-bootstrap:
     image: curlimages/curl:8.11.1
     environment:
-      - HYDRA_ADMIN_URL=http://hydra:4445
+      - HYDRA_ADMIN_URL=http://hydra-admin:4445
     volumes:
       - type: bind
         source: ./ory-hydra/clients
@@ -98,7 +106,7 @@ services:
   login:
     build: ./login
     environment:
-      - HYDRA_ADMIN_URL=http://hydra:4445
+      - HYDRA_ADMIN_URL=http://hydra-admin:4445
       - COOKIE_SECRET_FILE=/run/secrets/login_cookie_secret
       # POC shortcut: the stack is plain HTTP locally, so cookies cannot be Secure.
       - COOKIE_SECURE=false
@@ -129,6 +137,61 @@ services:
       # ready only once the demo client exists, and tolerate the job exiting.
       client-bootstrap:
         condition: service_completed_successfully
+
+  # Demo resource server: an API that accepts Hydra access tokens. It is ours,
+  # so it sits inside the trust boundary, and it needs the admin network for
+  # one thing: token introspection. Production would give it a proxy exposing
+  # only that route, or switch to JWT access tokens it can verify offline.
+  resource-server:
+    build: ./resource-server
+    environment:
+      - ROLE=api
+      - HYDRA_ADMIN_URL=http://hydra-admin:4445
+    ports:
+      - "127.0.0.1:4000:4000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - public
+      - admin
+    depends_on: [hydra]
+
+  # Demo OAuth2 client: stands in for a third-party app. It is outside the
+  # trust boundary: `public` only, so it can use Hydra's public API and the
+  # resource server, and nothing else. Open http://127.0.0.1:5555.
+  demo-client:
+    build: ./resource-server
+    environment:
+      - ROLE=client
+      - PORT=5555
+      - CLIENT_ID=demo-app
+      - BASE_URL=http://127.0.0.1:5555
+      # Front channel: where the user's browser reaches Hydra.
+      - HYDRA_BROWSER_URL=http://127.0.0.1:4444
+      # Back channel: where this container reaches Hydra's token endpoint.
+      - HYDRA_PUBLIC_URL=http://hydra:4444
+      - API_URL=http://resource-server:4000
+      - API_BROWSER_URL=http://127.0.0.1:4000
+    ports:
+      - "127.0.0.1:5555:5555"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5555/health/live').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - public
+    depends_on: [hydra, resource-server]
 
 secrets:
   postgres_password:

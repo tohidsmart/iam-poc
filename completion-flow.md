@@ -1,0 +1,13 @@
+I completed this task by taking the following steps 
+1. I read the task brief few time tos to undertstand the requirements, must to have, marking and acceptance criteria. 
+2. From there, I had to study the Ory implementation of OAauth, how Ory hydra fit into the big picture and decide on how to evolve demo login and consent service with a custom build. 
+3. I went to Ory GitHub and started with running the end-to-end of the stack using the docker compose setup provided. I chose to setup the Postgres backend from the get-go instead of Sqllite. Running the stack involved manual steps like registering a client, start the login flow using the demo username and password, copying the access code and exchange with Hydra admin API for access token, Id and refresh token 
+
+4. I was ready to get Claude Code invovled into the challenges. I planed to use the spec-driven development to create a constitution between my goals and objective. Instead of providing fragmanted prmopts, I start with drafting the spec.md. It outline the problem I was trying to solve The current status of the git repositroy for example the docker compose file. The tech stack : node, TypeScript , postgress, no functional requirements . my expctation etc. see spec.md 
+
+5. Claude remained faithful to our constitution and started refining the spec and generated spec.refined.md The feekback I got from claude was that I used ambigius tech term , the definition of done is not well defined but it found the `unknown to me` section useful 
+
+6. Before implementation we iterated over technical decisions , analyzed the trade off and locked in the scope. 
+ - How to manage secret and sensetive credentials. We agreed that there are several credentials which needs to be protected the most secure outisde of cloud is th encypt the value using symetics locally with libraries such as pgp howeer we decide that for a demo application , generating strong cred in the file, ignoring the file in source repository and load them onto the container during build time provide a secure solution. We should be able to explain the tradeoff 
+ - To establish the trust boundary between services, we created 3 docker networks and skipped publishing the sensetive ports such as hydra admin api. We then whilist the allowed network for each service . This means that only specific service can talk to hydra or database. THe shortcoming of this approach is that since hydra has both public and admin api . it is in public network and if user knows the admin api port, they can reach it. A more robust solution would be to add network security policy or put the admin route behind the prpoxy. 
+ - 

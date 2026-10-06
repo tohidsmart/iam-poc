@@ -37,6 +37,7 @@ const DESCRIPTIONS: Readonly<Record<string, string>> = {
   profile: "See your name",
   email: "See your email address",
   offline_access: "Stay connected when you are not using the app",
+  "api:read": "Read your data in the demo API",
 };
 
 export function registerConsentRoutes(app: FastifyInstance, consent: ConsentService, views: Views): void {
