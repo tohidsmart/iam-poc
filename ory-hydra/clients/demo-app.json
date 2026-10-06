@@ -1,0 +1,9 @@
+{
+  "client_id": "demo-app",
+  "client_name": "Demo App",
+  "token_endpoint_auth_method": "none",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "scope": "openid profile email offline_access",
+  "redirect_uris": ["http://127.0.0.1:5555/callback"]
+}

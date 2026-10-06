@@ -74,6 +74,27 @@ services:
       - admin
       - db
 
+  # One-shot job: registers the OAuth2 clients in ory-hydra/clients with Hydra.
+  # The Hydra image has no shell, so a small curl image runs the script.
+  client-bootstrap:
+    image: curlimages/curl:8.11.1
+    environment:
+      - HYDRA_ADMIN_URL=http://hydra:4445
+    volumes:
+      - type: bind
+        source: ./ory-hydra/clients
+        target: /clients
+        read_only: true
+      - type: bind
+        source: ./scripts/register-clients.sh
+        target: /register-clients.sh
+        read_only: true
+    entrypoint: ["sh", "/register-clients.sh"]
+    restart: on-failure
+    networks:
+      - admin
+    depends_on: [hydra]
+
   login:
     build: ./login
     environment:
@@ -101,7 +122,13 @@ services:
     networks:
       - public
       - admin
-    depends_on: [hydra]
+    depends_on:
+      hydra:
+        condition: service_started
+      # Not a runtime dependency. It makes `docker compose up --wait` report
+      # ready only once the demo client exists, and tolerate the job exiting.
+      client-bootstrap:
+        condition: service_completed_successfully
 
 secrets:
   postgres_password:
