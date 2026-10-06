@@ -1,0 +1,17 @@
+<% layout("./layout", { title: "Allow access" }) %>
+<h1>Allow access?</h1>
+<p><strong><%= it.clientName %></strong> would like to:</p>
+<form method="post" action="/consent">
+  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+  <input type="hidden" name="consent_challenge" value="<%= it.challenge %>">
+  <fieldset>
+<% for (const scope of it.scopes) { %>
+    <label class="check"><input name="scope" type="checkbox" value="<%= scope.name %>" checked> <%= scope.description %></label>
+<% } %>
+  </fieldset>
+  <label class="check"><input name="remember" type="checkbox" value="1"> Do not ask again for this app</label>
+  <div class="actions">
+    <button type="submit" name="decision" value="allow">Allow</button>
+    <button type="submit" name="decision" value="deny">Deny</button>
+  </div>
+</form>

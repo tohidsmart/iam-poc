@@ -1,0 +1,10 @@
+<% layout("./layout", { title: "Sign out" }) %>
+<h1>Sign out?</h1>
+<form method="post" action="/logout">
+  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+  <input type="hidden" name="logout_challenge" value="<%= it.challenge %>">
+  <div class="actions">
+    <button type="submit" name="decision" value="yes">Sign out</button>
+    <button type="submit" name="decision" value="no">Stay signed in</button>
+  </div>
+</form>

@@ -1,23 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { describe, expect, it } from "vitest";
-import { createApp } from "./support.js";
+import { createApp, openForm, postForm } from "./support.js";
 
-/** Loads the form the way a browser would and returns what it needs to post it. */
-async function openForm(app: FastifyInstance, challenge = "challenge-1") {
-  const response = await app.inject(`/login?login_challenge=${challenge}`);
-  const token = /name="_csrf" value="([^"]+)"/.exec(response.body)?.[1] ?? "";
-  const setCookie = response.headers["set-cookie"];
-  const cookie = String(Array.isArray(setCookie) ? setCookie[0] : setCookie).split(";", 1)[0] ?? "";
-  return { response, token, cookie };
-}
-
+const openLogin = (app: FastifyInstance) => openForm(app, "/login?login_challenge=challenge-1");
 const post = (app: FastifyInstance, fields: Record<string, string>, cookie?: string) =>
-  app.inject({
-    method: "POST",
-    url: "/login",
-    headers: { "content-type": "application/x-www-form-urlencoded", ...(cookie ? { cookie } : {}) },
-    payload: new URLSearchParams(fields).toString(),
-  });
+  postForm(app, "/login", Object.entries(fields), cookie);
 
 const credentials = { login_challenge: "challenge-1", username: "alice", password: "correct-password" };
 
@@ -26,7 +13,7 @@ describe("GET /login", () => {
     const { app, hydra } = await createApp();
     hydra.addLoginRequest({ clientName: "<script>alert(1)</script>" });
 
-    const { response, token } = await openForm(app);
+    const { response, token } = await openLogin(app);
 
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
@@ -76,7 +63,7 @@ describe("POST /login", () => {
   it("accepts valid credentials and redirects to Hydra", async () => {
     const { app, hydra } = await createApp();
     hydra.addLoginRequest();
-    const { token, cookie } = await openForm(app);
+    const { token, cookie } = await openLogin(app);
 
     const response = await post(app, { ...credentials, _csrf: token }, cookie);
 
@@ -88,7 +75,7 @@ describe("POST /login", () => {
   it("re-renders with a generic error and never echoes the password", async () => {
     const { app, hydra } = await createApp();
     hydra.addLoginRequest();
-    const { token, cookie } = await openForm(app);
+    const { token, cookie } = await openLogin(app);
 
     const response = await post(app, { ...credentials, password: "wrong-password", _csrf: token }, cookie);
 
@@ -102,7 +89,7 @@ describe("POST /login", () => {
   it("gives an unknown user exactly the same page as a wrong password", async () => {
     const { app, hydra } = await createApp();
     hydra.addLoginRequest();
-    const { token, cookie } = await openForm(app);
+    const { token, cookie } = await openLogin(app);
     const strip = (body: string) => body.replace(/name="_csrf" value="[^"]+"/, "").replace(/value="(alice|mallory)"/, "");
 
     const wrongPassword = await post(app, { ...credentials, password: "wrong", _csrf: token }, cookie);
@@ -115,7 +102,7 @@ describe("POST /login", () => {
   it("refuses a post without a CSRF token", async () => {
     const { app, hydra } = await createApp();
     hydra.addLoginRequest();
-    const { cookie } = await openForm(app);
+    const { cookie } = await openLogin(app);
 
     const response = await post(app, credentials, cookie);
 
@@ -126,7 +113,7 @@ describe("POST /login", () => {
   it("refuses a token that does not match the browser's cookie", async () => {
     const { app, hydra } = await createApp();
     hydra.addLoginRequest();
-    const { token } = await openForm(app);
+    const { token } = await openLogin(app);
 
     expect((await post(app, { ...credentials, _csrf: token })).statusCode).toBe(403);
   });
@@ -134,7 +121,7 @@ describe("POST /login", () => {
   it("refuses an oversized password before hashing it", async () => {
     const { app, hydra, hasher } = await createApp();
     hydra.addLoginRequest();
-    const { token, cookie } = await openForm(app);
+    const { token, cookie } = await openLogin(app);
 
     const response = await post(app, { ...credentials, password: "x".repeat(2000), _csrf: token }, cookie);
 
@@ -145,7 +132,7 @@ describe("POST /login", () => {
   it("limits repeated attempts", async () => {
     const { app, hydra } = await createApp({ loginAttemptsPerMinute: 2 });
     hydra.addLoginRequest();
-    const { token, cookie } = await openForm(app);
+    const { token, cookie } = await openLogin(app);
     const attempt = () => post(app, { ...credentials, password: "wrong", _csrf: token }, cookie);
 
     await attempt();

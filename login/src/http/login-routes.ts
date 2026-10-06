@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { LoginOutcome, LoginService } from "../services/login-service.js";
+import { challengeSchema, contextOf } from "./request-context.js";
 import type { Views } from "./views.js";
 
-// Hydra challenges are long opaque strings; the bounds only stop abuse.
-const challenge = { type: "string", minLength: 1, maxLength: 8192 } as const;
+const challenge = challengeSchema;
 
 const querySchema = {
   type: "object",
@@ -61,7 +61,7 @@ export function registerLoginRoutes(
 
   app.get<{ Querystring: LoginQuery }>("/login", { schema: { querystring: querySchema } }, async (request, reply) => {
     const { login_challenge } = request.query;
-    return respond(reply, await login.begin(login_challenge), { challenge: login_challenge });
+    return respond(reply, await login.begin(login_challenge, contextOf(request)), { challenge: login_challenge });
   });
 
   app.post<{ Body: LoginBody }>(
@@ -74,7 +74,11 @@ export function registerLoginRoutes(
     },
     async (request, reply) => {
       const { login_challenge, username, password, remember } = request.body;
-      const outcome = await login.submit(login_challenge, { username, password, remember: remember !== undefined });
+      const outcome = await login.submit(
+        login_challenge,
+        { username, password, remember: remember !== undefined },
+        contextOf(request),
+      );
       return respond(reply, outcome, { challenge: login_challenge, username, failed: true });
     },
   );

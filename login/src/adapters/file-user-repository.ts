@@ -26,7 +26,11 @@ export class UserFileError extends Error {
 
 /** Seeded users, read once at start-up. Immutable afterwards, so replicas never disagree. */
 export class FileUserRepository implements UserRepository {
-  private constructor(private readonly byUsername: ReadonlyMap<string, User>) {}
+  private readonly byId: ReadonlyMap<string, User>;
+
+  private constructor(private readonly byUsername: ReadonlyMap<string, User>) {
+    this.byId = new Map([...byUsername.values()].map((user) => [user.id, user]));
+  }
 
   static fromFile(path: string): FileUserRepository {
     let text: string;
@@ -65,5 +69,9 @@ export class FileUserRepository implements UserRepository {
 
   async findByUsername(username: string): Promise<User | undefined> {
     return this.byUsername.get(username);
+  }
+
+  async findById(id: string): Promise<User | undefined> {
+    return this.byId.get(id);
   }
 }

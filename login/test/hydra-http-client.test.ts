@@ -96,3 +96,76 @@ describe("HydraHttpClient.acceptLogin", () => {
     });
   });
 });
+
+describe("HydraHttpClient consent and logout", () => {
+  it("maps a consent request, tolerating absent optional fields", async () => {
+    const { client, calls } = clientReturning(200, { challenge: "c", subject: "user-1", client: { client_id: "abc" } });
+
+    expect(await client.getConsentRequest("c")).toEqual({
+      challenge: "c",
+      skip: false,
+      subject: "user-1",
+      clientId: "abc",
+      clientName: "abc",
+      clientSkipsConsent: false,
+      requestedScopes: [],
+      requestedAudience: [],
+    });
+    expect(calls[0]?.url).toBe("http://hydra:4445/admin/oauth2/auth/requests/consent?consent_challenge=c");
+  });
+
+  it("sends granted scopes and ID token claims on accept", async () => {
+    const { client, calls } = clientReturning(200, { redirect_to: "http://127.0.0.1:4444/next" });
+
+    await client.acceptConsent("c", {
+      grantedScopes: ["openid"],
+      grantedAudience: [],
+      remember: false,
+      rememberForSeconds: 0,
+      idTokenClaims: { email: "a@example.com" },
+    });
+
+    expect(calls[0]).toEqual({
+      url: "http://hydra:4445/admin/oauth2/auth/requests/consent/accept?consent_challenge=c",
+      method: "PUT",
+      body: {
+        grant_scope: ["openid"],
+        grant_access_token_audience: [],
+        remember: false,
+        remember_for: 0,
+        session: { id_token: { email: "a@example.com" } },
+      },
+    });
+  });
+
+  it("sends access_denied on reject", async () => {
+    const { client, calls } = clientReturning(200, { redirect_to: "http://client.test/cb" });
+
+    await client.rejectConsent("c", "The user denied the request.");
+
+    expect(calls[0]?.body).toEqual({ error: "access_denied", error_description: "The user denied the request." });
+  });
+
+  it("accepts an empty 204 answer when rejecting a logout", async () => {
+    const client = new HydraHttpClient({
+      baseUrl: "http://hydra:4445",
+      timeoutMs: 50,
+      fetch: async () => new Response(null, { status: 204 }),
+    });
+
+    await expect(client.rejectLogout("c")).resolves.toBeUndefined();
+  });
+
+  it("reports the outcome and duration of each call", async () => {
+    const seen: Array<[string, boolean]> = [];
+    const client = new HydraHttpClient({
+      baseUrl: "http://hydra:4445",
+      timeoutMs: 50,
+      fetch: async () => new Response("{}", { status: 404 }),
+      onCall: (operation, ok) => seen.push([operation, ok]),
+    });
+
+    await expect(client.getLogoutRequest("c")).rejects.toBeInstanceOf(HydraChallengeError);
+    expect(seen).toEqual([["logout.get", false]]);
+  });
+});
