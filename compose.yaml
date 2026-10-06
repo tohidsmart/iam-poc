@@ -79,6 +79,14 @@ services:
     environment:
       - HYDRA_ADMIN_URL=http://hydra:4445
       - COOKIE_SECRET_FILE=/run/secrets/login_cookie_secret
+      # POC shortcut: the stack is plain HTTP locally, so cookies cannot be Secure.
+      - COOKIE_SECURE=false
+    volumes:
+      # Seeded users are data, not code: change them without rebuilding the image.
+      - type: bind
+        source: ./login/config
+        target: /app/config
+        read_only: true
     secrets:
       - login_cookie_secret
     ports:

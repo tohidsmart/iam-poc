@@ -1,0 +1,15 @@
+# Seeded demo users. Passwords are stored only as argon2id hashes; produce one
+# with:  printf '%s' 'the-password' | npx tsx scripts/hash-password.ts
+# The demo passwords are listed in the README because this is test data.
+# `id` becomes the OAuth2 subject and must never change or be reused.
+users:
+  - id: 7f1c7b0e-6a0b-4e0e-9a55-2f1f5a7f3a01
+    username: alice
+    passwordHash: "$argon2id$v=19$m=65536,p=4,t=3$4bGRXxFdcYVqA5lRcF+JkA$uuhzUlYo11iju5TI5WwdMigJQ4nZJF3R/cPW6omHQRY"
+    name: Alice Example
+    email: alice@example.com
+  - id: 0c9d2f6a-1b7e-4d3c-8e2a-9b6f4c1d2e02
+    username: bob
+    passwordHash: "$argon2id$v=19$m=65536,p=4,t=3$A5UjUgB6N9ISKaNGc0jRfg$8MWRcDdKumVGVulXqZrQ6NfNGZC8vdGMRIrynLQVZ1o"
+    name: Bob Example
+    email: bob@example.com

@@ -1,0 +1,16 @@
+<% layout("./layout", { title: "Sign in" }) %>
+<h1>Sign in</h1>
+<p>to continue to <strong><%= it.clientName %></strong></p>
+<% if (it.error) { %>
+<p class="error" role="alert"><%= it.error %></p>
+<% } %>
+<form method="post" action="/login">
+  <input type="hidden" name="_csrf" value="<%= it.csrfToken %>">
+  <input type="hidden" name="login_challenge" value="<%= it.challenge %>">
+  <label for="username">Username</label>
+  <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" required autofocus value="<%= it.username %>">
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
+  <label class="check"><input name="remember" type="checkbox" value="1"> Keep me signed in</label>
+  <button type="submit">Sign in</button>
+</form>

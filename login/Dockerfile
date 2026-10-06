@@ -24,6 +24,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY views ./views
 COPY package.json ./
 
 # Files stay root-owned and the process runs as `node` (uid 1000), so a

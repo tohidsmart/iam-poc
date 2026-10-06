@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 
+const flag = (fallback: "true" | "false") =>
+  z
+    .enum(["true", "false"])
+    .default(fallback)
+    .transform((value) => value === "true");
+
 const schema = z.object({
   host: z.string().min(1).default("0.0.0.0"),
   port: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -8,6 +14,11 @@ const schema = z.object({
   hydraAdminUrl: z.string().url(),
   hydraTimeoutMs: z.coerce.number().int().positive().default(5000),
   cookieSecret: z.string().min(32, "must be at least 32 characters"),
+  // Secure by default; only plain-HTTP local runs turn this off.
+  cookieSecure: flag("true"),
+  usersFile: z.string().min(1).default("config/users.yml"),
+  rememberForSeconds: z.coerce.number().int().nonnegative().default(3600),
+  loginAttemptsPerMinute: z.coerce.number().int().positive().default(10),
 });
 
 export type Config = Readonly<z.infer<typeof schema>>;
@@ -46,6 +57,10 @@ export function loadConfig(
     hydraAdminUrl: env.HYDRA_ADMIN_URL,
     hydraTimeoutMs: env.HYDRA_TIMEOUT_MS,
     cookieSecret: readSecret(env, "COOKIE_SECRET", readFile),
+    cookieSecure: env.COOKIE_SECURE,
+    usersFile: env.USERS_FILE,
+    rememberForSeconds: env.REMEMBER_FOR_SECONDS,
+    loginAttemptsPerMinute: env.LOGIN_ATTEMPTS_PER_MINUTE,
   });
   if (!parsed.success) {
     // Zod reports the key and the rule, never the offending value.
