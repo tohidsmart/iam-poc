@@ -11,6 +11,6 @@
   <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" required autofocus value="<%= it.username %>">
   <label for="password">Password</label>
   <input id="password" name="password" type="password" autocomplete="current-password" required>
-  <label class="check"><input name="remember" type="checkbox" value="1"> Keep me signed in</label>
+  <label class="check"><input name="remember" type="checkbox" value="1" checked> Keep me signed in</label>
   <button type="submit">Sign in</button>
 </form>

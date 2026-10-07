@@ -10,10 +10,13 @@ Hydra is the authorization server. It issues tokens but deliberately owns no use
 
 Requires Docker with Compose.
 
+One command, from a clean checkout:
+
 ```bash
-./scripts/setup.sh                    # generates secrets into ./secrets (gitignored)
-docker compose up -d --build --wait   # starts everything and registers the demo client
+bash scripts/setup.sh && docker compose up -d --build --wait
 ```
+
+It generates local secrets into `./secrets` (gitignored), builds the images, runs Hydra's database migrations, starts everything and registers the demo client. To reset completely, including the database: `docker compose down -v && rm -rf secrets`.
 
 Open **http://127.0.0.1:5555** and click **Sign in**.
 
